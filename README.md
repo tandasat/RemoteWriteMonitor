@@ -32,7 +32,7 @@ The driver reports when any process newly created after the installation called
 NtWriteVirtualMemory() or NtMapViewOfSection() against another process and saves
 what was written or mapped into the remote process. Output can be seen with DebugView and are all saved under the
 C:\Windows\RemoteWriteMonitor\ directory. Written and mapped data is stored as
-<SHA1>.bin apart from a log file.
+\<SHA1\>.bin apart from a log file.
 
 'injector' could be used to test the driver's function. Injecting and executing code into
 notepad.exe could be done by the following commands:
@@ -58,20 +58,24 @@ Caveats
 being written and whether it gets executed. Thus, you should only focus on
 output related to the sample you are analyzing as it reports a lot of legit
 activities too.
--- It was designed so because it is far more difficult to track all written
-regions and reports only when it is executed (I wrote [that](https://sites.google.com/site/tandasat/home/egg) long time ago).
+
+ - It was designed so because it is far more difficult to track all written
+regions and reports only when it is executed (I wrote [that](https://sites.google.com/site/tandasat/home/egg) long time ago, and that was hell).
+
 - It does not monitor any of processes existed when the driver's installation.
 Thus, the second injection will not be reported when the sample injects code
 into an explorer.exe, and then the injected code in the explorer.exe injects
 code into another process.
+
 - It may or may not save the contents of memory that is really executed because
 it only takes dump at the occurrence of those API call. This is particularly true
 in the case of ZwMapViewOfSection().
--- These are limitations but will be fine for letting analysts know injection
+
+ - These are limitations but will be fine for letting analysts know injection
 may be happening.
 
 
-Supported Platforms
+Supported Platform(s)
 -----------------
 - Windows 7 SP1 x86
 
