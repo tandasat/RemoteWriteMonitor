@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RemoteWriteMonitor", "RemoteWriteMonitor\RemoteWriteMonitor.vcxproj", "{287B2687-2894-4AA5-A5A9-686AE6C5F34A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "injector", "injector\injector.vcxproj", "{FEE34C62-A273-4557-BF93-360BDA2855E5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{287B2687-2894-4AA5-A5A9-686AE6C5F34A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{287B2687-2894-4AA5-A5A9-686AE6C5F34A}.Debug|Win32.Build.0 = Debug|Win32
+		{287B2687-2894-4AA5-A5A9-686AE6C5F34A}.Release|Win32.ActiveCfg = Release|Win32
+		{287B2687-2894-4AA5-A5A9-686AE6C5F34A}.Release|Win32.Build.0 = Release|Win32
+		{FEE34C62-A273-4557-BF93-360BDA2855E5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{FEE34C62-A273-4557-BF93-360BDA2855E5}.Debug|Win32.Build.0 = Debug|Win32
+		{FEE34C62-A273-4557-BF93-360BDA2855E5}.Release|Win32.ActiveCfg = Release|Win32
+		{FEE34C62-A273-4557-BF93-360BDA2855E5}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
