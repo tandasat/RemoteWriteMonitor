@@ -2,12 +2,14 @@ RemoteWriteMonitor
 ========
 
 RemoteWriteMonitor is a tool to help malware analysts tell that the sample is
-injecting code to other process. This tool is designed to find a possible
-remote process code injection and execution without use of NtCreateThread() or
-NtCreateThreadEx().
+injecting code to another process. This tool is designed to find a possible
+remote code injection and execution without use of NtCreateThread/Ex(), APC or 
+thread context manipulation.
 
 A supporting tool 'injector' is a sample program doing that type of code
 injection.
+
+A related blog entory can be found here.
 
 Installation and Uninstallation
 -----------------
@@ -17,7 +19,7 @@ Use the 'sc' command, for example, for installation:
     >sc create rwmon type= kernel binPath= C:\Users\user\Desktop\RemoteWriteMonitor.sys
     >sc start rwmon
 
-And for uninstallation:
+For uninstallation:
 
     >sc stop rwmon
     >sc delete rwmon
@@ -25,14 +27,14 @@ And for uninstallation:
 Usage
 -------
 
-Once you have installed it, you can execute the sample and see output by the
+Once you have installed it, you may execute the sample and see output from the
 driver if any.
 
 The driver reports when any process newly created after the installation called
 NtWriteVirtualMemory() or NtMapViewOfSection() against another process and saves
-what was written or mapped into the remote process. Output can be seen with DebugView and are all saved under the
-C:\Windows\RemoteWriteMonitor\ directory. Written and mapped data is stored as
-\<SHA1\>.bin apart from a log file.
+what was written or mapped into the remote process. Output can be seen with 
+DebugView and are all saved under the C:\Windows\RemoteWriteMonitor\ 
+directory. Written and mapped data is stored as \<SHA1\>.bin apart from a log file.
 
 'injector' could be used to test the driver's function. Injecting and executing code into
 notepad.exe could be done by the following commands:
@@ -60,15 +62,15 @@ output related to the sample you are analyzing as it reports a lot of legit
 activities too.
 
  - It was designed so because it is far more difficult to track all written
-regions and reports only when it is executed (I wrote [that](https://sites.google.com/site/tandasat/home/egg) long time ago, and that was hell).
+regions and reports only when it is executed (I wrote [it](https://sites.google.com/site/tandasat/home/egg) long time ago, and it was hell).
 
-- It does not monitor any of processes existed when the driver's installation.
-Thus, the second injection will not be reported when the sample injects code
-into an explorer.exe, and then the injected code in the explorer.exe injects
+- It does not monitor any of processes existed when the driver was installed.
+Thus, the second injection will not be reported if the sample injects code
+into explorer.exe, and then the injected code in the explorer.exe injects
 code into another process.
 
-- It may or may not save the contents of memory that is really executed because
-it only takes dump at the occurrence of those API call. This is particularly true
+- Saved memory contents may or may not be the same as what was executed because
+the driver only takes dump at occurrence of those API calls. This is particularly true
 in the case of ZwMapViewOfSection().
 
  - These are limitations but will be fine for letting analysts know injection
