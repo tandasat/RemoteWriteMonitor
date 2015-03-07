@@ -9,7 +9,7 @@ thread context manipulation.
 A supporting tool 'injector' is a sample program doing that type of code
 injection.
 
-A related blog entory can be found here.
+A related blog entory can be found [here](http://standa-note.blogspot.ca/2015/03/section-based-code-injection-and-its.html).
 
 Installation and Uninstallation
 -----------------
