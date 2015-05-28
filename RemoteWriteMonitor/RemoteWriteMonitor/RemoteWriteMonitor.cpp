@@ -214,7 +214,7 @@ EXTERN_C NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject,
   auto status = STATUS_UNSUCCESSFUL;
 
   DriverObject->DriverUnload = RWMonpDriverUnload;
-  // DBG_BREAK();
+  DBG_BREAK();
 
   // Create a directory for a log file and dumped files before initializing
   // the Log system
@@ -240,9 +240,12 @@ EXTERN_C NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject,
     LOG_ERROR("RtlGetVersion failed (%08x)", status);
     return status;
   }
-  if (osVersion.dwMajorVersion == 6 || osVersion.dwMinorVersion == 1) {
+  if (osVersion.dwMajorVersion == 6 && osVersion.dwMinorVersion == 1) {
     g_RWMonpNtMapViewOfSection_Index = 0xA8;
     g_RWMonpNtWriteVirtualMemory_Index = 0x18F;
+  } else if (osVersion.dwMajorVersion == 6 && osVersion.dwMinorVersion == 3) {
+    g_RWMonpNtMapViewOfSection_Index = 0xF6;
+    g_RWMonpNtWriteVirtualMemory_Index = 0x3;
   } else {
     LOG_ERROR("Unsupported OS version");
     return STATUS_DEVICE_CONFIGURATION_ERROR;
