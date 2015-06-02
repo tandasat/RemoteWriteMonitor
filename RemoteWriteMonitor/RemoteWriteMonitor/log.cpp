@@ -326,8 +326,8 @@ _Requires_lock_not_held_(*SpinLock) _Acquires_lock_(*SpinLock)
 #endif
 
 // Actual implementation of logging API.
-EXTERN_C NTSTATUS LogPrint(_In_ ULONG Level, _In_ const char *FunctionName,
-                           _In_ const char *Format, ...) {
+EXTERN_C NTSTATUS LogpPrint(_In_ ULONG Level, _In_ const char *FunctionName,
+                            _In_ const char *Format, ...) {
   auto status = STATUS_SUCCESS;
 
   if (!LogpIsLogNeeded(Level)) {

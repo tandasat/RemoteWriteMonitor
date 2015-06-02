@@ -8,6 +8,14 @@
 // are changed infrequently
 //
 
+//
+// NOTE:
+//
+// About building the driver:
+//  Visual Studio will pop up a dialog during a build process and require a
+//  password for code signing. Type "password" for it.
+//
+
 #pragma once
 
 extern "C" {
@@ -92,3 +100,12 @@ static const ULONG RWMON_POOL_TAG_NAME = 'nmwr';
 //
 // implementations
 //
+
+// Returns true when it is running on the x64 system.
+inline bool IsX64() {
+#ifdef _AMD64_
+  return true;
+#else
+  return false;
+#endif
+}
