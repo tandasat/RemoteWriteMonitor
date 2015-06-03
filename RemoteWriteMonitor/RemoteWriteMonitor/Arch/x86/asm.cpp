@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 //
-//
+// This module implements empty functions for Asm functions to allow us to build
+// the code on x86. Those Asm functions are not used on x86.
 //
 #include "stdafx.h"
 #include "../../asm.h"

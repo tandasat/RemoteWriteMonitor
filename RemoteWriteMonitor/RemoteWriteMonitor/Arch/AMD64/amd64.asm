@@ -1,5 +1,12 @@
+; Copyright (c) 2015, tandasat. All rights reserved.
+; Use of this source code is governed by a MIT-style license that can be
+; found in the LICENSE file.
+
 ;
-; This module implements the lowest part of hook handlers
+; This module implements stub functions implementing overwritten part of the
+; hooked function and providing accesses to the those original functionalities.
+;
+; Those functions are taken from ntoskrnl.exe and used only on x64 build.
 ;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -24,7 +31,7 @@ jmp_address:
 ENDM
 
 
-
+; NtMapViewOfSection for Windows 8.1 and 7 (both are identical)
 AsmNtMapViewOfSection_Win81_7 PROC
     mov     qword ptr [rsp+10h], rbx
     mov     qword ptr [rsp+18h], rsi
@@ -37,7 +44,7 @@ AsmNtMapViewOfSection_Win81_7End PROC
 AsmNtMapViewOfSection_Win81_7End ENDP
 
 
-; For Win 8.1
+; NtWriteVirtualMemory for Win 8.1
 AsmNtWriteVirtualMemory_Win81 PROC
     sub     rsp, 38h
     mov     rax, [rsp+60h]
@@ -50,7 +57,7 @@ AsmNtWriteVirtualMemory_Win81End PROC
 AsmNtWriteVirtualMemory_Win81End ENDP
 
 
-; For Win 7
+; NtWriteVirtualMemory for Win 7
 AsmNtWriteVirtualMemory_Win7 PROC
     mov     rax, rsp
     mov     qword ptr [rax+8h], rbx
@@ -62,7 +69,6 @@ AsmNtWriteVirtualMemory_Win7 ENDP
 AsmNtWriteVirtualMemory_Win7End PROC
     nop
 AsmNtWriteVirtualMemory_Win7End ENDP
-
 
 
 END

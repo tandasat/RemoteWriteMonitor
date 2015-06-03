@@ -3,15 +3,12 @@
 // found in the LICENSE file.
 
 //
-// This module implements an entry point of the driver and initializes other
-// components in this module.
+// This module implements inline hook related functions.
 //
 #include "stdafx.h"
 #include "inline.h"
 #include "log.h"
 #include "util.h"
-
-namespace stdexp = std::experimental;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -34,9 +31,6 @@ struct TrampolineCode {
   UCHAR jmp[6];
   FARPROC FunctionAddress;
 };
-static const auto DISPGP_MININUM_EPILOGUE_LENGTH = sizeof(TrampolineCode);
-static_assert(sizeof(TrampolineCode) == DISPGP_MININUM_EPILOGUE_LENGTH,
-              "Size check");
 #include <poppack.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,15 +56,13 @@ EXTERN_C static TrampolineCode InlinepMakeTrampolineCode(
 // implementations
 //
 
-// Fill out HookInfo in order to hook the begging of the function. This is not
-// designed to execute original code like what DispgpSetEpilogueHookInfo() does.
+// Fill out a InlineHookInfo struct with given parameters
 ALLOC_TEXT(INIT, InlineInitHookInfo)
 EXTERN_C NTSTATUS
 InlineInitHookInfo(_In_ UCHAR *HookAddress, _In_ FARPROC HookHandler,
                    _In_ FARPROC AsmHandler, _In_ FARPROC AsmHandlerEnd,
-                   _Out_ HookInfo *Info) {
+                   _Out_ InlineHookInfo *Info) {
   PAGED_CODE();
-
   NT_ASSERT(HookHandler);
   NT_ASSERT(AsmHandler);
   NT_ASSERT(AsmHandlerEnd);
@@ -82,7 +74,7 @@ InlineInitHookInfo(_In_ UCHAR *HookAddress, _In_ FARPROC HookHandler,
 
   Info->HookHandler = HookHandler;
   Info->HookAddress = HookAddress;
-  Info->OriginalCodeSize = DISPGP_MININUM_EPILOGUE_LENGTH;
+  Info->OriginalCodeSize = sizeof(TrampolineCode);
   memcpy(Info->OriginalCode, Info->HookAddress, Info->OriginalCodeSize);
 
   auto status = InlinepFixupAsmCode(HookAddress, AsmHandler, AsmHandlerEnd);
@@ -101,10 +93,11 @@ ALLOC_TEXT(PAGED, InlinepMakeTrampolineCode)
 EXTERN_C static TrampolineCode InlinepMakeTrampolineCode(
     _In_ UCHAR *HookAddress, _In_ FARPROC HookHandler) {
   PAGED_CODE();
+  UNREFERENCED_PARAMETER(HookAddress);
+
   //          jmp qword ptr [nextline]
   // nextline:
   //          dq HookHandler
-  UNREFERENCED_PARAMETER(HookAddress);
   return {
       {
           0xff, 0x25, 0x00, 0x00, 0x00, 0x00,
@@ -114,9 +107,8 @@ EXTERN_C static TrampolineCode InlinepMakeTrampolineCode(
 }
 
 // Replaces placeholder (0xffffffffffffffff) in AsmHandler with a given
-// ReturnAddress. AsmHandler does not has to be writable. Race condition between
-// multiple processors should be taken care of by a programmer it exists; this
-// function does not care about it.
+// OriginalRoutine. AsmHandler does not has to be writable. Race condition 
+// between multiple processors should be taken care of by a programmer.
 ALLOC_TEXT(PAGED, InlinepFixupAsmCode)
 EXTERN_C
 NTSTATUS static InlinepFixupAsmCode(_In_ UCHAR *OriginalRoutine,
@@ -124,8 +116,9 @@ NTSTATUS static InlinepFixupAsmCode(_In_ UCHAR *OriginalRoutine,
                                     _In_ FARPROC AsmHandlerEnd) {
   PAGED_CODE();
   ASSERT(AsmHandlerEnd > AsmHandler);
-  SIZE_T asmHandlerSize = reinterpret_cast<ULONG_PTR>(AsmHandlerEnd) -
-                          reinterpret_cast<ULONG_PTR>(AsmHandler);
+
+  const auto asmHandlerSize = reinterpret_cast<ULONG_PTR>(AsmHandlerEnd) -
+                              reinterpret_cast<ULONG_PTR>(AsmHandler);
 
   ULONG64 pattern = 0xffffffffffffffff;
   auto addressOfMarker = UtilMemMem(reinterpret_cast<void *>(AsmHandler),
@@ -137,20 +130,29 @@ NTSTATUS static InlinepFixupAsmCode(_In_ UCHAR *OriginalRoutine,
                          sizeof(destinationAddress));
 }
 
-// Install a inline hook (modify code) using HookInfo.
-ALLOC_TEXT(PAGED, InlineInstallHook)
-EXTERN_C NTSTATUS InlineInstallHook(_In_ const HookInfo &Info) {
-  PAGED_CODE();
+// Install a inline hook (modify code) based on InlineHookInfo. It is not 
+// multi-processor safe.
+EXTERN_C NTSTATUS InlineInstallHook(_In_ const InlineHookInfo &Info) {
   LOG_DEBUG("%p => %p", Info.HookAddress, Info.HookHandler);
   auto newCode = InlinepMakeTrampolineCode(Info.HookAddress, Info.HookHandler);
+  
+  KIRQL oldIrql = 0;
+  KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
+  const auto scopedIrql =
+      stdexp::make_scope_exit([oldIrql]() { KeLowerIrql(oldIrql); });
+
   auto status = UtilForceMemCpy(Info.HookAddress, newCode.jmp, sizeof(newCode));
   UtilInvalidateInstructionCache(Info.HookAddress, sizeof(newCode));
   return status;
 }
 
-ALLOC_TEXT(PAGED, InlineUninstallHook)
-EXTERN_C NTSTATUS InlineUninstallHook(_In_ const HookInfo &Info) {
-  PAGED_CODE();
+// Uninstall a inline hook (modify code) based on InlineHookInfo.
+EXTERN_C NTSTATUS InlineUninstallHook(_In_ const InlineHookInfo &Info) {
+  KIRQL oldIrql = 0;
+  KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
+  const auto scopedIrql =
+      stdexp::make_scope_exit([oldIrql]() { KeLowerIrql(oldIrql); });
+
   auto status = UtilForceMemCpy(Info.HookAddress, Info.OriginalCode,
                                 Info.OriginalCodeSize);
   UtilInvalidateInstructionCache(Info.HookAddress, Info.OriginalCodeSize);

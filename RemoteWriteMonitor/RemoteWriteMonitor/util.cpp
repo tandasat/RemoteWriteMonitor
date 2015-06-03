@@ -3,12 +3,10 @@
 // found in the LICENSE file.
 
 //
-//
+// This module implements various utility functions.
 //
 #include "stdafx.h"
 #include "util.h"
-
-namespace stdexp = std::experimental;
 
 ////////////////////////////////////////////////////////////////////////////////
 //

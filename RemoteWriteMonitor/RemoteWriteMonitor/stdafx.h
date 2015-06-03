@@ -42,6 +42,8 @@ extern "C" {
 #include "../Common/ScopedResource/unique_resource.h"
 #include "../Common/ScopedResource/scope_exit.h"
 
+namespace stdexp = std::experimental;
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // macro utilities

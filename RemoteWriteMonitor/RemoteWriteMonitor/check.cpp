@@ -3,14 +3,12 @@
 // found in the LICENSE file.
 
 //
-// This module implements an entry point of the driver and initializes other
-// components in this module.
+// This module implements functions for checking if data is written
+// by a remote process and saving it if so.
 //
 #include "stdafx.h"
 #include "check.h"
 #include "log.h"
-
-namespace stdexp = std::experimental;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -28,6 +26,7 @@ static const auto CHECKP_WHITELIST_ARRAY_SIZE = 1000;
 //
 // types
 //
+
 struct SYSTEM_PROCESS_INFORMATION {
   ULONG NextEntryOffset;
   ULONG NumberOfThreads;
@@ -46,6 +45,7 @@ struct SYSTEM_PROCESS_INFORMATION {
 enum SYSTEM_INFORMATION_CLASS {
   SystemProcessInformation = 5,
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // prototypes
@@ -95,7 +95,7 @@ EXTERN_C static NTSTATUS CheckpWriteFile(_In_ const wchar_t *OutPathW,
 // variables
 //
 
-static wchar_t g_CheckpLogDirecotry[MAX_PATH];
+static wchar_t g_CheckpLogDirecotry[MAX_PATH] = {};
 static HANDLE g_CheckpWhiteListedProcessIDs[CHECKP_WHITELIST_ARRAY_SIZE] = {};
 static BCRYPT_ALG_HANDLE g_CheckpSha1AlgorithmHandle = nullptr;
 
@@ -104,6 +104,7 @@ static BCRYPT_ALG_HANDLE g_CheckpSha1AlgorithmHandle = nullptr;
 // implementations
 //
 
+// Initialize the Check subsystem
 ALLOC_TEXT(INIT, CheckInitialization)
 EXTERN_C NTSTATUS CheckInitialization(_In_ const wchar_t *LogDirectry) {
   PAGED_CODE();
@@ -133,9 +134,11 @@ EXTERN_C NTSTATUS CheckInitialization(_In_ const wchar_t *LogDirectry) {
   return status;
 }
 
+// Terminates the check subsystem
 ALLOC_TEXT(PAGED, CheckTermination)
 EXTERN_C void CheckTermination() {
   PAGED_CODE();
+
   BCryptCloseAlgorithmProvider(g_CheckpSha1AlgorithmHandle, 0);
 }
 
@@ -225,20 +228,19 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
       [targetProcess] { ObDereferenceObject(targetProcess); });
 
   // Allocate a memory to copy written data
-  auto data = stdexp::make_unique_resource(
-      ExAllocatePoolWithTag(PagedPool, DataSize, RWMON_POOL_TAG_NAME),
-      [](void *p) { ExFreePoolWithTag(p, RWMON_POOL_TAG_NAME); });
+  auto data = ExAllocatePoolWithTag(PagedPool, DataSize, RWMON_POOL_TAG_NAME);
   if (!data) {
     return false;
   }
+  auto scopedData = stdexp::make_scope_exit(
+      [data]() { ExFreePoolWithTag(data, RWMON_POOL_TAG_NAME); });
 
   // Copy the written data
   auto status = STATUS_SUCCESS;
   if (Contents) {
-    status =
-        CheckpCopyDataFromUserSpace(data.get(), Contents, DataSize, nullptr);
+    status = CheckpCopyDataFromUserSpace(data, Contents, DataSize, nullptr);
   } else {
-    status = CheckpCopyDataFromUserSpace(data.get(), RemoteAddress, DataSize,
+    status = CheckpCopyDataFromUserSpace(data, RemoteAddress, DataSize,
                                          targetProcess);
   }
   if (!NT_SUCCESS(status)) {
@@ -248,7 +250,7 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
 
   // Calculate SHA1 of the written data
   UCHAR sha1Hash[20] = {};
-  if (!CheckpGetSha1(sha1Hash, data.get(), DataSize)) {
+  if (!CheckpGetSha1(sha1Hash, data, DataSize)) {
     return false;
   }
   wchar_t sha1HashW[41] = {};
@@ -265,8 +267,8 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
     LOG_ERROR_SAFE("RtlStringCchPrintfW failed (%08x)", status);
     return false;
   }
-  status = CheckpWriteFile(outPathW, data.get(), DataSize, GENERIC_WRITE,
-                           FILE_CREATE);
+  status =
+      CheckpWriteFile(outPathW, data, DataSize, GENERIC_WRITE, FILE_CREATE);
   if (!NT_SUCCESS(status) && status != STATUS_OBJECT_NAME_COLLISION) {
     LOG_ERROR_SAFE("WriteFile failed (%08x)", status);
     return false;

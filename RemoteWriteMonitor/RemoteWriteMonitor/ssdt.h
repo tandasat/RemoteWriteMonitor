@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 //
-//
+// This module declares interfaces to SSDT hook related functions.
 //
 #pragma once
 

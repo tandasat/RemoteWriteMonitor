@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 //
-//
+// This module declares interfaces to functions for checking if data is written 
+// by a remote process and saving it if so.
 //
 #pragma once
 

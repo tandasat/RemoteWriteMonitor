@@ -14,8 +14,6 @@
 #include "ssdt.h"
 #include "util.h"
 
-namespace stdexp = std::experimental;
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 // macro utilities
@@ -98,8 +96,8 @@ EXTERN_C static NTSTATUS NTAPI RWMonpNtMapViewOfSection_Hook(
 // variables
 //
 
-static HookInfo g_RWMonpNtMapViewOfSectionInfo = {};
-static HookInfo g_RWMonpNtWriteVirtualMemoryInfo = {};
+static InlineHookInfo g_RWMonpNtMapViewOfSectionInfo = {};
+static InlineHookInfo g_RWMonpNtWriteVirtualMemoryInfo = {};
 
 static NtMapViewOfSectionType g_RWMonpNtMapViewOfSectionOriginal = nullptr;
 static NtWriteVirtualMemoryType g_RWMonpNtWriteVirtualMemoryOriginal = nullptr;
@@ -120,8 +118,8 @@ EXTERN_C NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject,
                               _In_ PUNICODE_STRING RegistryPath) {
   PAGED_CODE();
   UNREFERENCED_PARAMETER(RegistryPath);
-  auto status = STATUS_UNSUCCESSFUL;
 
+  auto status = STATUS_UNSUCCESSFUL;
   DriverObject->DriverUnload = RWMonpDriverUnload;
   DBG_BREAK();
 
@@ -164,6 +162,7 @@ EXTERN_C NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject,
   auto scopedCheckTermination =
       stdexp::make_scope_exit([] { CheckTermination(); });
 
+  // Install hooks
   status = RWMonpInstallHooks();
   if (!NT_SUCCESS(status)) {
     return status;
@@ -176,6 +175,7 @@ EXTERN_C NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject,
   return status;
 }
 
+// Perform version check and fill out global variable based on the version
 ALLOC_TEXT(INIT, RWMonpInitVersionDependentValues)
 EXTERN_C static NTSTATUS RWMonpInitVersionDependentValues() {
   PAGED_CODE();
@@ -335,6 +335,7 @@ EXTERN_C static NTSTATUS RWMonpSleep(_In_ LONG Millisecond) {
   return KeDelayExecutionThread(KernelMode, FALSE, &interval);
 }
 
+// Install hooks 
 ALLOC_TEXT(INIT, RWMonpInstallHooks)
 EXTERN_C static NTSTATUS RWMonpInstallHooks() {
   PAGED_CODE();
@@ -361,6 +362,7 @@ EXTERN_C static NTSTATUS RWMonpInstallHooks() {
   return status;
 }
 
+// Uninstall hooks
 ALLOC_TEXT(PAGED, RWMonpUninstallHooks)
 EXTERN_C static NTSTATUS RWMonpUninstallHooks() {
   PAGED_CODE();
