@@ -12,6 +12,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		..\README.md = ..\README.md
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RemoteWriteMonitor Package", "RemoteWriteMonitor Package\RemoteWriteMonitor Package.vcxproj", "{51790305-6652-4A1D-869C-0B39AF78AB9C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{987A0E0D-CF4E-4DC8-A5FE-1CCCC3D75082} = {987A0E0D-CF4E-4DC8-A5FE-1CCCC3D75082}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Win7 Debug|Win32 = Win7 Debug|Win32
@@ -64,6 +69,30 @@ Global
 		{FEE34C62-A273-4557-BF93-360BDA2855E5}.Win8.1 Release|Win32.Build.0 = Release|Win32
 		{FEE34C62-A273-4557-BF93-360BDA2855E5}.Win8.1 Release|Win32.Deploy.0 = Release|Win32
 		{FEE34C62-A273-4557-BF93-360BDA2855E5}.Win8.1 Release|x64.ActiveCfg = Release|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Debug|Win32.ActiveCfg = Win7 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Debug|Win32.Build.0 = Win7 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Debug|Win32.Deploy.0 = Win7 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Debug|x64.ActiveCfg = Win7 Debug|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Debug|x64.Build.0 = Win7 Debug|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Debug|x64.Deploy.0 = Win7 Debug|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Release|Win32.ActiveCfg = Win7 Release|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Release|Win32.Build.0 = Win7 Release|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Release|Win32.Deploy.0 = Win7 Release|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Release|x64.ActiveCfg = Win7 Release|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Release|x64.Build.0 = Win7 Release|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win7 Release|x64.Deploy.0 = Win7 Release|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Debug|Win32.ActiveCfg = Win8.1 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Debug|Win32.Build.0 = Win8.1 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Debug|Win32.Deploy.0 = Win8.1 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Debug|x64.ActiveCfg = Win8.1 Debug|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Debug|x64.Build.0 = Win8.1 Debug|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Debug|x64.Deploy.0 = Win8.1 Debug|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Release|Win32.ActiveCfg = Win8.1 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Release|Win32.Build.0 = Win8.1 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Release|Win32.Deploy.0 = Win8.1 Debug|Win32
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Release|x64.ActiveCfg = Win8.1 Release|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Release|x64.Build.0 = Win8.1 Release|x64
+		{51790305-6652-4A1D-869C-0B39AF78AB9C}.Win8.1 Release|x64.Deploy.0 = Win8.1 Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
