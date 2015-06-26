@@ -283,11 +283,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">true</ExcludedFromBuild>
     </MASM>
   </ItemGroup>
-  <ItemGroup>
-    <Inf Include="RemoteWriteMonitor.inf">
-      <FileType>Document</FileType>
-    </Inf>
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
