@@ -9,7 +9,7 @@ thread context manipulation.
 A supporting tool 'injector' is a sample program doing that type of code
 injection.
 
-A related blog entory can be found here:
+A related blog entry can be found here:
 
     http://standa-note.blogspot.ca/2015/03/section-based-code-injection-and-its.html
 
@@ -37,7 +37,8 @@ the following command:
    >bcdedit /set {current} testsigning on
     
 Then, reboot the system to activate the change. You also have to disable the 
-Kernel Patch Protection (PatchGuard), and Google helps you do that work.
+Kernel Patch Protection (PatchGuard); [DisPG](https://github.com/tandasat/PgResarch/tree/master/DisPG)
+may be use of.
 
 
 Usage

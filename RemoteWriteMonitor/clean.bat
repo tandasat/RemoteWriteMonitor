@@ -1,5 +1,6 @@
-del *.sdf
+del *.sdf *.opensdf 
 del /a:h *.suo
+rmdir /s /q .vs
 rmdir /s /q ipch
 rmdir /s /q Debug
 rmdir /s /q Release
