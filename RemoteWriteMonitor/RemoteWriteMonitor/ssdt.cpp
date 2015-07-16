@@ -145,6 +145,13 @@ EXTERN_C FARPROC SSDTGetProcAdderss(_In_ ULONG Index) {
 
 // Get an original value of the SSDT and replace it with a new value.
 EXTERN_C void SSDTSetProcAdderss(_In_ ULONG Index, _In_ FARPROC HookRoutine) {
+
+#ifdef _AMD64_
+  UNREFERENCED_PARAMETER(Index);
+  UNREFERENCED_PARAMETER(HookRoutine);
+  DBG_BREAK();
+#else
+
   // Need to rise IRQL not to allow the system to change an execution processor
   // during the operation because this code changes a state of processor (CR0).
   KIRQL oldIrql = 0;
@@ -154,4 +161,7 @@ EXTERN_C void SSDTSetProcAdderss(_In_ ULONG Index, _In_ FARPROC HookRoutine) {
   g_SSDTpTable->ServiceTable[Index] = reinterpret_cast<ULONG>(HookRoutine);
   UtilEnableWriteProtect();
   KeLowerIrql(oldIrql);
+
+#endif
+
 }
