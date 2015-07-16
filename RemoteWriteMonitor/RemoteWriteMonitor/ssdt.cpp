@@ -149,11 +149,9 @@ EXTERN_C void SSDTSetProcAdderss(_In_ ULONG Index, _In_ FARPROC HookRoutine) {
   // during the operation because this code changes a state of processor (CR0).
   KIRQL oldIrql = 0;
   KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
-  const auto scopedIrql =
-      stdexp::make_scope_exit([oldIrql]() { KeLowerIrql(oldIrql); });
 
   UtilDisableWriteProtect();
-  const auto scopedWriteProtection =
-      stdexp::make_scope_exit([] { UtilEnableWriteProtect(); });
   g_SSDTpTable->ServiceTable[Index] = reinterpret_cast<ULONG>(HookRoutine);
+  UtilEnableWriteProtect();
+  KeLowerIrql(oldIrql);
 }

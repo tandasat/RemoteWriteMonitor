@@ -138,11 +138,9 @@ EXTERN_C NTSTATUS InlineInstallHook(_In_ const InlineHookInfo &Info) {
   
   KIRQL oldIrql = 0;
   KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
-  const auto scopedIrql =
-      stdexp::make_scope_exit([oldIrql]() { KeLowerIrql(oldIrql); });
-
   auto status = UtilForceMemCpy(Info.HookAddress, newCode.jmp, sizeof(newCode));
   UtilInvalidateInstructionCache(Info.HookAddress, sizeof(newCode));
+  KeLowerIrql(oldIrql);
   return status;
 }
 
@@ -150,11 +148,9 @@ EXTERN_C NTSTATUS InlineInstallHook(_In_ const InlineHookInfo &Info) {
 EXTERN_C NTSTATUS InlineUninstallHook(_In_ const InlineHookInfo &Info) {
   KIRQL oldIrql = 0;
   KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
-  const auto scopedIrql =
-      stdexp::make_scope_exit([oldIrql]() { KeLowerIrql(oldIrql); });
-
   auto status = UtilForceMemCpy(Info.HookAddress, Info.OriginalCode,
                                 Info.OriginalCodeSize);
   UtilInvalidateInstructionCache(Info.HookAddress, Info.OriginalCodeSize);
+  KeLowerIrql(oldIrql);
   return status;
 }

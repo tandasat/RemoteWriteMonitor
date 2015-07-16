@@ -173,10 +173,8 @@ EXTERN_C static NTSTATUS CheckpForEachProcess(
         ZwQuerySystemInformation(SystemProcessInformation, processInfo,
                                  (returnLength + PAGE_SIZE), &returnLength);
   }
-  const auto scopedExFreePoolWithTag = stdexp::make_scope_exit(
-      [processInfo] { ExFreePoolWithTag(processInfo, RWMON_POOL_TAG_NAME); });
   if (!NT_SUCCESS(status)) {
-    return status;
+    goto End;
   }
 
   for (auto current = processInfo; current; /**/) {
@@ -191,6 +189,8 @@ EXTERN_C static NTSTATUS CheckpForEachProcess(
         reinterpret_cast<ULONG_PTR>(current) + current->NextEntryOffset);
   }
 
+End:
+  ExFreePoolWithTag(processInfo, RWMON_POOL_TAG_NAME);
   return status;
 }
 
@@ -217,6 +217,7 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
                         _In_opt_ void *Contents, _In_ ULONG DataSize) {
   PAGED_CODE();
 
+  bool result = false;
   const auto isWriteVirtualMemory = (Contents != nullptr);
 
   // Check if it is a interprocess operation
@@ -224,16 +225,12 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
   if (!CheckpIsInterprocessWrite(ProcessHandle, &targetProcess)) {
     return false;
   }
-  const auto scopedDereference = stdexp::make_scope_exit(
-      [targetProcess] { ObDereferenceObject(targetProcess); });
 
   // Allocate a memory to copy written data
   auto data = ExAllocatePoolWithTag(PagedPool, DataSize, RWMON_POOL_TAG_NAME);
   if (!data) {
-    return false;
+    goto End;
   }
-  auto scopedData = stdexp::make_scope_exit(
-      [data]() { ExFreePoolWithTag(data, RWMON_POOL_TAG_NAME); });
 
   // Copy the written data
   auto status = STATUS_SUCCESS;
@@ -245,13 +242,13 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
   }
   if (!NT_SUCCESS(status)) {
     LOG_ERROR_SAFE("CopyDataFromUserSpace failed (%08x)", status);
-    return false;
+    goto End;
   }
 
   // Calculate SHA1 of the written data
   UCHAR sha1Hash[20] = {};
   if (!CheckpGetSha1(sha1Hash, data, DataSize)) {
-    return false;
+    goto End;
   }
   wchar_t sha1HashW[41] = {};
   for (auto i = 0; i < RTL_NUMBER_OF(sha1Hash); ++i) {
@@ -265,22 +262,30 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
                                g_CheckpLogDirecotry, sha1HashW);
   if (!NT_SUCCESS(status)) {
     LOG_ERROR_SAFE("RtlStringCchPrintfW failed (%08x)", status);
-    return false;
+    goto End;
   }
   status =
       CheckpWriteFile(outPathW, data, DataSize, GENERIC_WRITE, FILE_CREATE);
   if (!NT_SUCCESS(status) && status != STATUS_OBJECT_NAME_COLLISION) {
     LOG_ERROR_SAFE("WriteFile failed (%08x)", status);
-    return false;
+    goto End;
   }
 
+  const auto collision = (status == STATUS_OBJECT_NAME_COLLISION) ? "dup with" 
+    : "saved as";
+
   // Log it
-  LOG_INFO_SAFE("Remote %s onto %5lu (%-15s) at %p (saved as %S, %lu bytes)",
+  LOG_INFO_SAFE("Remote %s onto %5lu (%-15s) at %p (%s %S, %lu bytes)",
                 (isWriteVirtualMemory) ? "write" : "map  ",
                 PsGetProcessId(targetProcess),
                 PsGetProcessImageFileName(targetProcess), RemoteAddress,
-                sha1HashW, DataSize);
-  return true;
+                collision, sha1HashW, DataSize);
+  result = true;
+
+End:;
+  if (data) { ExFreePoolWithTag(data, RWMON_POOL_TAG_NAME);}
+  ObDereferenceObject(targetProcess);
+  return result;
 }
 
 // Check if the write operation is interprocess and from a not white listed
@@ -324,17 +329,18 @@ EXTERN_C static NTSTATUS CheckpCopyDataFromUserSpace(
     _In_opt_ PEPROCESS TargetProcess) {
   PAGED_CODE();
 
+  auto status = STATUS_UNSUCCESSFUL;
   if (TargetProcess) {
     // Need to switch to another process memory space to access the data
     KAPC_STATE apcState = {};
     KeStackAttachProcess(TargetProcess, &apcState);
-    const auto scopedKeUnstackDetachProcess = stdexp::make_scope_exit(
-        [&apcState] { KeUnstackDetachProcess(&apcState); });
-    return CheckpTryCopyMemory(Buffer, BaseAddress, DataSize);
+    status = CheckpTryCopyMemory(Buffer, BaseAddress, DataSize);
+    KeUnstackDetachProcess(&apcState);
   } else {
     // The current process contains the data
-    return CheckpTryCopyMemory(Buffer, BaseAddress, DataSize);
+    status = CheckpTryCopyMemory(Buffer, BaseAddress, DataSize);
   }
+  return status;
 }
 
 // RtlCopyMemory wrapped with SEH
@@ -358,31 +364,33 @@ _Success_(return == true) EXTERN_C
     static bool CheckpGetSha1(_Out_ UCHAR(&Sha1Hash)[20], _In_ void *Data,
                               _In_ ULONG DataSize) {
   PAGED_CODE();
+  bool result = false;
 
   BCRYPT_HASH_HANDLE hashHandle = nullptr;
   auto status = BCryptCreateHash(g_CheckpSha1AlgorithmHandle, &hashHandle,
                                  nullptr, 0, nullptr, 0, 0);
   if (!NT_SUCCESS(status)) {
     LOG_ERROR_SAFE("BCryptCreateHash failed (%08x)", status);
-    return false;
+    goto End;
   }
-  const auto scopedBCryptDestroyHash =
-      stdexp::make_scope_exit([hashHandle] { BCryptDestroyHash(hashHandle); });
 
   status = BCryptHashData(hashHandle, static_cast<UCHAR *>(Data), DataSize, 0);
   if (!NT_SUCCESS(status)) {
     LOG_ERROR_SAFE("BCryptHashData failed (%08x)", status);
-    return false;
+    goto End;
   }
 
   static_assert(sizeof(Sha1Hash) == 20, "Size check");
   status = BCryptFinishHash(hashHandle, Sha1Hash, sizeof(Sha1Hash), 0);
   if (!NT_SUCCESS(status)) {
     LOG_ERROR_SAFE("BCryptFinishHash failed (%08x)", status);
-    return false;
+    goto End;
   }
+  result = true;
 
-  return true;
+End:;
+  if (hashHandle) { BCryptDestroyHash(hashHandle); }
+  return result;
 }
 
 // Write data to a file

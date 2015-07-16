@@ -28,14 +28,6 @@ extern "C" {
 #pragma warning(pop)
 }
 
-#ifndef _HAS_EXCEPTIONS
-#define _HAS_EXCEPTIONS 0
-#endif
-#include "../Common/ScopedResource/unique_resource.h"
-#include "../Common/ScopedResource/scope_exit.h"
-
-namespace stdexp = std::experimental;
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 // macro utilities
@@ -62,11 +54,6 @@ namespace stdexp = std::experimental;
   reinterpret_cast<void *>(0)
 #endif  // _ARM_
 #endif  // DBG_BREAK
-
-// To explicitly suppress warnings
-#ifndef UNREFERENCED_LOCAL_VARIABLE
-#define UNREFERENCED_LOCAL_VARIABLE(x) (reinterpret_cast<void *>(!(x)))
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //

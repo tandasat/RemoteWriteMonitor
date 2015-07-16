@@ -20,8 +20,8 @@
 #include <winternl.h>
 #include <TlHelp32.h>
 
-#include "../Common/ScopedResource/unique_resource.h"
-#include "../Common/ScopedResource/scope_exit.h"
+#include "ScopedResource/unique_resource.h"
+#include "ScopedResource/scope_exit.h"
 
 namespace stdexp = std::experimental;
 

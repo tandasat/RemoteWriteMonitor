@@ -186,14 +186,14 @@ EXTERN_C static NTSTATUS LogpInitializeBufferInfo(
 
   // Allocate two log buffers on NonPagedPool.
   Info->LogBuffer1 = reinterpret_cast<char *>(ExAllocatePoolWithTag(
-      NonPagedPool, LOGP_BUFFER_SIZE, LOGP_POOL_TAG_NAME));
+      NonPagedPoolNx, LOGP_BUFFER_SIZE, LOGP_POOL_TAG_NAME));
   if (!Info->LogBuffer1) {
     LogpFinalizeBufferInfo(DeviceObject, Info);
     return STATUS_INSUFFICIENT_RESOURCES;
   }
 
   Info->LogBuffer2 = reinterpret_cast<char *>(ExAllocatePoolWithTag(
-      NonPagedPool, LOGP_BUFFER_SIZE, LOGP_POOL_TAG_NAME));
+      NonPagedPoolNx, LOGP_BUFFER_SIZE, LOGP_POOL_TAG_NAME));
   if (!Info->LogBuffer2) {
     LogpFinalizeBufferInfo(DeviceObject, Info);
     return STATUS_INSUFFICIENT_RESOURCES;

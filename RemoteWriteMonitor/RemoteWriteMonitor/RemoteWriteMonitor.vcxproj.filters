@@ -13,14 +13,18 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Driver Files">
+      <UniqueIdentifier>{8E41214B-6785-4CFE-B992-037D68949A14}</UniqueIdentifier>
+      <Extensions>inf;inv;inx;mof;mc;</Extensions>
+    </Filter>
     <Filter Include="Source Files\Arch">
-      <UniqueIdentifier>{92ec6841-3b89-43a6-8ce1-3dd70898e636}</UniqueIdentifier>
+      <UniqueIdentifier>{f7b6d55a-ed6d-4b41-ad2f-b0655f29c8e5}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Arch\x86">
-      <UniqueIdentifier>{50b9ecfc-b33b-4adb-8bcf-6cf305042be6}</UniqueIdentifier>
+      <UniqueIdentifier>{8074da67-3160-466f-9c24-8a646e3d8642}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Arch\AMD64">
-      <UniqueIdentifier>{e6866ce5-f1d2-47bd-b2b5-763276207d0c}</UniqueIdentifier>
+      <UniqueIdentifier>{f0256296-1a4f-45ba-8c8a-3938e86b5bf2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

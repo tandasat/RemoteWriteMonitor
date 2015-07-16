@@ -91,14 +91,12 @@ EXTERN_C void *UtilMemMem(_In_ const void *SearchBase, _In_ SIZE_T SearchSize,
 // Does memcpy safely even if Destination is a read only region.
 EXTERN_C NTSTATUS UtilForceMemCpy(_In_ void *Destination,
                                   _In_ const void *Source, _In_ SIZE_T Length) {
-  auto mdl = std::experimental::make_unique_resource(
-      IoAllocateMdl(Destination, static_cast<ULONG>(Length), FALSE, FALSE,
-                    nullptr),
-      &IoFreeMdl);
+  auto mdl = IoAllocateMdl(Destination, static_cast<ULONG>(Length), FALSE, FALSE,
+                    nullptr);
   if (!mdl) {
     return STATUS_INSUFFICIENT_RESOURCES;
   }
-  MmBuildMdlForNonPagedPool(mdl.get());
+  MmBuildMdlForNonPagedPool(mdl);
 
   //
   // Following MmMapLockedPagesSpecifyCache() call causes bug check in case
@@ -114,17 +112,18 @@ EXTERN_C NTSTATUS UtilForceMemCpy(_In_ void *Destination,
   // This flag modification hacks Driver Verifier's check and prevent leading
   // bug check.
   //
-  mdl.get()->MdlFlags &= ~MDL_SOURCE_IS_NONPAGED_POOL;
-  mdl.get()->MdlFlags |= MDL_PAGES_LOCKED;
+  mdl->MdlFlags &= ~MDL_SOURCE_IS_NONPAGED_POOL;
+  mdl->MdlFlags |= MDL_PAGES_LOCKED;
 
-  auto writableDest = std::experimental::make_unique_resource(
-      MmMapLockedPagesSpecifyCache(mdl.get(), KernelMode, MmCached, nullptr,
-                                   FALSE, NormalPagePriority),
-      [&mdl](void *p) { MmUnmapLockedPages(p, mdl.get()); });
+  auto writableDest = MmMapLockedPagesSpecifyCache(mdl, KernelMode, MmCached, nullptr,
+                                   FALSE, NormalPagePriority);
   if (!writableDest) {
+    IoFreeMdl(mdl);
     return STATUS_INSUFFICIENT_RESOURCES;
   }
-  memcpy(writableDest.get(), Source, Length);
+  memcpy(writableDest, Source, Length);
+  MmUnmapLockedPages(writableDest, mdl);
+  IoFreeMdl(mdl);
   return STATUS_SUCCESS;
 }
 

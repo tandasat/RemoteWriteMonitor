@@ -137,40 +137,39 @@ EXTERN_C NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject,
   if (!NT_SUCCESS(status)) {
     return status;
   }
-  auto scopedLogTermination =
-      stdexp::make_scope_exit([] { LogTermination(nullptr); });
 
   // Init SSDT
   status = SSDTInitialization();
   if (!NT_SUCCESS(status)) {
+    LogTermination(nullptr);
     return status;
   }
-  auto scopedSSDTTermination =
-      stdexp::make_scope_exit([] { SSDTTermination(); });
 
   // Init globals
   status = RWMonpInitVersionDependentValues();
   if (!NT_SUCCESS(status)) {
+    SSDTTermination();
+    LogTermination(nullptr);
     return status;
   }
 
   // Init the Check subsystem
   status = CheckInitialization(RWMONP_OUT_DIRECTORY_PATH);
   if (!NT_SUCCESS(status)) {
+    SSDTTermination();
+    LogTermination(nullptr);
     return status;
   }
-  auto scopedCheckTermination =
-      stdexp::make_scope_exit([] { CheckTermination(); });
 
   // Install hooks
   status = RWMonpInstallHooks();
   if (!NT_SUCCESS(status)) {
+    CheckTermination();
+    SSDTTermination();
+    LogTermination(nullptr);
     return status;
   }
 
-  scopedCheckTermination.release();
-  scopedSSDTTermination.release();
-  scopedLogTermination.release();
   LOG_INFO("RemoteWriteMonitor installed");
   return status;
 }
