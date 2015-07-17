@@ -1,20 +1,21 @@
 RemoteWriteMonitor
-========
+===================
 
 RemoteWriteMonitor is a tool to help malware analysts tell that the sample is
 injecting code to another process. This tool is designed to find a possible
 remote code injection and execution without use of NtCreateThread/Ex(), APC or 
 thread context manipulation.
 
-A supporting tool 'injector' is a sample program doing that type of code
+A supporting tool 'TestInjector' is a sample program doing that type of code
 injection.
 
 A related blog entry can be found here:
 
     http://standa-note.blogspot.ca/2015/03/section-based-code-injection-and-its.html
 
+
 Installation and Uninstallation
------------------
+--------------------------------
 
 Get an archive file for compiled files form this link:
 
@@ -42,7 +43,7 @@ may be use of.
 
 
 Usage
--------
+------
 
 Once you have installed it, you may execute the sample and see output from the
 driver if any.
@@ -53,29 +54,30 @@ what was written or mapped into the remote process. Output can be seen with
 DebugView and are all saved under the C:\Windows\RemoteWriteMonitor\ 
 directory. Written and mapped data is stored as \<SHA1\>.bin apart from a log file.
 
-'injector' could be used to test the driver's function. Injecting and executing 
+'TestInjector' could be used to test the driver's function. Injecting and executing 
 code into notepad.exe can be done by the following commands:
 
     >notepad && tasklist | findstr notepad
     notepad.exe                   3368 Console                    1      4,564 K
 
-    >injector 3368 section context
+    >TestInjector 3368 section context
     Remote Address   : 00180000
     Waiting for the thread get executed.
     Remote Thread ID : 1912
 
-    >injector 3368 alloc context
+    >TestInjector 3368 alloc context
     Remote Address   : 001B0000
     Remote Thread ID : 2156
 
 Output on DebugView would look like this:
 ![DebugView](/img/injector.png)
 
-Note that the injector only works against 32 bit processes.
+Note that the TestInjector only works against 32 bit processes.
 
 
 Caveats
--------
+--------
+
 - It reports all those API calls regardless of its memory protection, contents
 being written and whether it gets executed. Thus, you should only focus on
 output related to the sample you are analyzing as it reports a lot of legit
@@ -98,12 +100,10 @@ may be happening.
 
 
 Supported Platform(s)
------------------
+----------------------
 - Windows 7 SP1 and 8.1 (x86/x64)
 
 
 License
 -----------------
 This software is released under the MIT License, see LICENSE.
-
-
