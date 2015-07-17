@@ -40,6 +40,8 @@ EXTERN_C NTSTATUS UtilForceMemCpy(_In_ void *Destination,
 EXTERN_C void UtilInvalidateInstructionCache(_In_ void *BaseAddress,
                                              _In_ SIZE_T Length);
 
+EXTERN_C NTSTATUS UtilSleep(_In_ LONG Millisecond);
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // variables

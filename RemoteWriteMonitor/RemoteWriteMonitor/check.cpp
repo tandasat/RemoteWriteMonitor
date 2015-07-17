@@ -9,6 +9,7 @@
 #include "stdafx.h"
 #include "check.h"
 #include "log.h"
+#include "util.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -46,6 +47,24 @@ enum SYSTEM_INFORMATION_CLASS {
   SystemProcessInformation = 5,
 };
 
+
+enum INTER_PROCESS_TYPE
+{
+  INTER_PROCESS_WRITE,
+  INTER_PROCESS_MAP,
+};
+
+struct CHECK_WORK_ITEM_CONTEXT
+{
+  WORK_QUEUE_ITEM WorkItem;
+  void *Data;
+  ULONG DataSize;
+  INTER_PROCESS_TYPE Type;
+  PEPROCESS WriterProcess;
+  PEPROCESS TargetProcess;
+  void *RemoteAddress;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // prototypes
@@ -54,11 +73,10 @@ enum SYSTEM_INFORMATION_CLASS {
 EXTERN_C NTKERNELAPI UCHAR *NTAPI
 PsGetProcessImageFileName(_In_ PEPROCESS Process);
 
-EXTERN_C NTSTATUS NTAPI
-ZwQuerySystemInformation(_In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
-                         _Inout_ PVOID SystemInformation,
-                         _In_ ULONG SystemInformationLength,
-                         _Out_opt_ PULONG ReturnLength);
+EXTERN_C NTSTATUS NTAPI ZwQuerySystemInformation(
+    _In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
+    _Inout_ PVOID SystemInformation, _In_ ULONG SystemInformationLength,
+    _Out_opt_ PULONG ReturnLength);
 
 EXTERN_C static NTSTATUS CheckpForEachProcess(
     _In_ bool (*Callback)(_In_ const SYSTEM_PROCESS_INFORMATION *ProcessInfo,
@@ -80,6 +98,8 @@ EXTERN_C static NTSTATUS CheckpTryCopyMemory(_Out_ void *Destionation,
                                              _In_ const void *Source,
                                              _In_ SIZE_T Length);
 
+EXTERN_C static void CheckpWorkItemRoutine(_In_ void *Context);
+
 _Success_(return == true) EXTERN_C
     static bool CheckpGetSha1(_Out_ UCHAR(&Sha1Hash)[20], _In_ void *Data,
                               _In_ ULONG DataSize);
@@ -98,6 +118,7 @@ EXTERN_C static NTSTATUS CheckpWriteFile(_In_ const wchar_t *OutPathW,
 static wchar_t g_CheckpLogDirecotry[MAX_PATH] = {};
 static HANDLE g_CheckpWhiteListedProcessIDs[CHECKP_WHITELIST_ARRAY_SIZE] = {};
 static BCRYPT_ALG_HANDLE g_CheckpSha1AlgorithmHandle = nullptr;
+static volatile long g_CheckpNumberOfActiveWorkQueueItems = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -138,6 +159,12 @@ EXTERN_C NTSTATUS CheckInitialization(_In_ const wchar_t *LogDirectry) {
 ALLOC_TEXT(PAGED, CheckTermination)
 EXTERN_C void CheckTermination() {
   PAGED_CODE();
+
+  // while (g_CheckpNumberOfActiveWorkQueueItems != 0)
+  while (InterlockedCompareExchange(&g_CheckpNumberOfActiveWorkQueueItems, 0,
+                                     0) != 0) {
+    UtilSleep(500);
+  }
 
   BCryptCloseAlgorithmProvider(g_CheckpSha1AlgorithmHandle, 0);
 }
@@ -189,7 +216,7 @@ EXTERN_C static NTSTATUS CheckpForEachProcess(
         reinterpret_cast<ULONG_PTR>(current) + current->NextEntryOffset);
   }
 
-End:
+End:;
   ExFreePoolWithTag(processInfo, RWMON_POOL_TAG_NAME);
   return status;
 }
@@ -217,9 +244,6 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
                         _In_opt_ void *Contents, _In_ ULONG DataSize) {
   PAGED_CODE();
 
-  bool result = false;
-  const auto isWriteVirtualMemory = (Contents != nullptr);
-
   // Check if it is a interprocess operation
   PEPROCESS targetProcess = nullptr;
   if (!CheckpIsInterprocessWrite(ProcessHandle, &targetProcess)) {
@@ -229,7 +253,7 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
   // Allocate a memory to copy written data
   auto data = ExAllocatePoolWithTag(PagedPool, DataSize, RWMON_POOL_TAG_NAME);
   if (!data) {
-    goto End;
+    goto FailureEnd;
   }
 
   // Copy the written data
@@ -242,50 +266,43 @@ EXTERN_C bool CheckData(_In_ HANDLE ProcessHandle, _In_ void *RemoteAddress,
   }
   if (!NT_SUCCESS(status)) {
     LOG_ERROR_SAFE("CopyDataFromUserSpace failed (%08x)", status);
-    goto End;
+    goto FailureEnd;
   }
 
-  // Calculate SHA1 of the written data
-  UCHAR sha1Hash[20] = {};
-  if (!CheckpGetSha1(sha1Hash, data, DataSize)) {
-    goto End;
-  }
-  wchar_t sha1HashW[41] = {};
-  for (auto i = 0; i < RTL_NUMBER_OF(sha1Hash); ++i) {
-    const auto outW = sha1HashW + i * 2;
-    RtlStringCchPrintfW(outW, 3, L"%02x", sha1Hash[i]);
+  // Allocate and queue an work queue item
+  auto workItemContext = reinterpret_cast<CHECK_WORK_ITEM_CONTEXT *>(
+      ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(CHECK_WORK_ITEM_CONTEXT),
+                            RWMON_POOL_TAG_NAME));
+  if (!workItemContext) {
+    goto FailureEnd;
   }
 
-  // Save it to a file
-  wchar_t outPathW[260];
-  status = RtlStringCchPrintfW(outPathW, RTL_NUMBER_OF(outPathW), L"%s\\%s.bin",
-                               g_CheckpLogDirecotry, sha1HashW);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR_SAFE("RtlStringCchPrintfW failed (%08x)", status);
-    goto End;
-  }
-  status =
-      CheckpWriteFile(outPathW, data, DataSize, GENERIC_WRITE, FILE_CREATE);
-  if (!NT_SUCCESS(status) && status != STATUS_OBJECT_NAME_COLLISION) {
-    LOG_ERROR_SAFE("WriteFile failed (%08x)", status);
-    goto End;
+  status = ObReferenceObjectByPointer(PsGetCurrentProcess(), 0, *PsProcessType, KernelMode);
+  if (!NT_SUCCESS(status))
+  {
+    LOG_ERROR_SAFE("ObReferenceObjectByPointer failed (%08x)", status);
+    ExFreePoolWithTag(workItemContext, RWMON_POOL_TAG_NAME);
+    goto FailureEnd;
   }
 
-  const auto collision = (status == STATUS_OBJECT_NAME_COLLISION) ? "dup with" 
-    : "saved as";
+  InterlockedIncrement(&g_CheckpNumberOfActiveWorkQueueItems);
+  ExInitializeWorkItem(&workItemContext->WorkItem, CheckpWorkItemRoutine,
+                       workItemContext);
+  workItemContext->Data = data;
+  workItemContext->DataSize = DataSize;
+  workItemContext->Type = (Contents) ? INTER_PROCESS_WRITE : INTER_PROCESS_MAP;
+  workItemContext->WriterProcess = PsGetCurrentProcess();
+  workItemContext->TargetProcess = targetProcess;
+  workItemContext->RemoteAddress = RemoteAddress;
+  ExQueueWorkItem(&workItemContext->WorkItem, DelayedWorkQueue);
+  return true;
 
-  // Log it
-  LOG_INFO_SAFE("Remote %s onto %5lu (%-15s) at %p (%s %S, %lu bytes)",
-                (isWriteVirtualMemory) ? "write" : "map  ",
-                PsGetProcessId(targetProcess),
-                PsGetProcessImageFileName(targetProcess), RemoteAddress,
-                collision, sha1HashW, DataSize);
-  result = true;
-
-End:;
-  if (data) { ExFreePoolWithTag(data, RWMON_POOL_TAG_NAME);}
+FailureEnd:;
+  if (data) {
+    ExFreePoolWithTag(data, RWMON_POOL_TAG_NAME);
+  }
   ObDereferenceObject(targetProcess);
-  return result;
+  return false;
 }
 
 // Check if the write operation is interprocess and from a not white listed
@@ -353,9 +370,69 @@ EXTERN_C static NTSTATUS CheckpTryCopyMemory(_Out_ void *Destionation,
   auto status = STATUS_SUCCESS;
   __try {
     RtlCopyMemory(Destionation, Source, Length);
-  } __except (status = GetExceptionCode(), EXCEPTION_EXECUTE_HANDLER) {
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    status = GetExceptionCode();
   }
   return status;
+}
+
+// Calculate SHA1 of the data and write it to a file
+ALLOC_TEXT(PAGED, CheckpWorkItemRoutine)
+EXTERN_C static void CheckpWorkItemRoutine(_In_ void *Context)
+{
+  PAGED_CODE();
+
+  auto parameter = reinterpret_cast<CHECK_WORK_ITEM_CONTEXT *>(Context);
+
+  // Calculate SHA1 of the written data
+  UCHAR sha1Hash[20] = {};
+  if (!CheckpGetSha1(sha1Hash, parameter->Data, parameter->DataSize))
+  {
+    goto End;
+  }
+  wchar_t sha1HashW[41] = {};
+  for (auto i = 0; i < RTL_NUMBER_OF(sha1Hash); ++i)
+  {
+    const auto outW = sha1HashW + i * 2;
+    RtlStringCchPrintfW(outW, 3, L"%02x", sha1Hash[i]);
+  }
+
+  // Save it to a file
+  wchar_t outPathW[260];
+  auto status =
+    RtlStringCchPrintfW(outPathW, RTL_NUMBER_OF(outPathW), L"%s\\%s.bin",
+      g_CheckpLogDirecotry, sha1HashW);
+  if (!NT_SUCCESS(status))
+  {
+    LOG_ERROR("RtlStringCchPrintfW failed (%08x)", status);
+    goto End;
+  }
+  status = CheckpWriteFile(outPathW, parameter->Data, parameter->DataSize,
+    GENERIC_WRITE, FILE_CREATE);
+  if (!NT_SUCCESS(status) && status != STATUS_OBJECT_NAME_COLLISION)
+  {
+    LOG_ERROR("WriteFile failed (%08x)", status);
+    goto End;
+  }
+
+  const auto collision =
+    (status == STATUS_OBJECT_NAME_COLLISION) ? "dup with" : "saved as";
+
+  // Log it
+  LOG_INFO("Remote %s from %5lu (%-15s) to %5lu (%-15s) at %p (%s %S, %lu bytes)",
+    (parameter->Type == INTER_PROCESS_WRITE) ? "write" : "map  ",
+    PsGetProcessId(parameter->WriterProcess),
+    PsGetProcessImageFileName(parameter->WriterProcess),
+    PsGetProcessId(parameter->TargetProcess),
+    PsGetProcessImageFileName(parameter->TargetProcess),
+    parameter->RemoteAddress, collision, sha1HashW, parameter->DataSize);
+
+End:;
+  ExFreePoolWithTag(parameter->Data, RWMON_POOL_TAG_NAME);
+  ObDereferenceObject(parameter->WriterProcess);
+  ObDereferenceObject(parameter->TargetProcess);
+  ExFreePoolWithTag(parameter, RWMON_POOL_TAG_NAME);
+  InterlockedDecrement(&g_CheckpNumberOfActiveWorkQueueItems);
 }
 
 // Calculate SHA1
@@ -389,7 +466,9 @@ _Success_(return == true) EXTERN_C
   result = true;
 
 End:;
-  if (hashHandle) { BCryptDestroyHash(hashHandle); }
+  if (hashHandle) {
+    BCryptDestroyHash(hashHandle);
+  }
   return result;
 }
 

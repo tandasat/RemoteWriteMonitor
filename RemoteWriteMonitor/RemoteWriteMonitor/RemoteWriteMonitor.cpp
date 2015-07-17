@@ -72,8 +72,6 @@ EXTERN_C static NTSTATUS RWMonpInitVersionDependentValues();
 
 EXTERN_C static DRIVER_UNLOAD RWMonpDriverUnload;
 
-EXTERN_C static NTSTATUS RWMonpSleep(_In_ LONG Millisecond);
-
 EXTERN_C static NTSTATUS RWMonpInstallHooks();
 
 EXTERN_C static NTSTATUS RWMonpUninstallHooks();
@@ -318,20 +316,10 @@ EXTERN_C static void RWMonpDriverUnload(_In_ PDRIVER_OBJECT DriverObject) {
   // DBG_BREAK();
 
   RWMonpUninstallHooks();
-  RWMonpSleep(1000);
+  UtilSleep(1000);
   CheckTermination();
   SSDTTermination();
   LogTermination(nullptr);
-}
-
-// Sleep.
-ALLOC_TEXT(PAGED, RWMonpSleep)
-EXTERN_C static NTSTATUS RWMonpSleep(_In_ LONG Millisecond) {
-  PAGED_CODE();
-
-  LARGE_INTEGER interval = {};
-  interval.QuadPart = -(10000 * Millisecond);  // msec
-  return KeDelayExecutionThread(KernelMode, FALSE, &interval);
 }
 
 // Install hooks 

@@ -138,3 +138,14 @@ EXTERN_C void UtilInvalidateInstructionCache(_In_ void *BaseAddress,
   _mm_sfence();
 #endif
 }
+
+// Sleep.
+ALLOC_TEXT(PAGED, UtilSleep)
+EXTERN_C NTSTATUS UtilSleep(_In_ LONG Millisecond)
+{
+  PAGED_CODE();
+
+  LARGE_INTEGER interval = {};
+  interval.QuadPart = -(10000 * Millisecond);  // msec
+  return KeDelayExecutionThread(KernelMode, FALSE, &interval);
+}
