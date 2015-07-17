@@ -52,6 +52,7 @@ struct LogBufferInfo {
   HANDLE LogFileHandle;
   KSPIN_LOCK SpinLock;
   ERESOURCE Resource;
+  bool ResourceInitialized;
   volatile bool BufferFlushThreadShouldBeAlive;
   HANDLE BufferFlushThreadHandle;
 };
@@ -68,9 +69,8 @@ EXTERN_C static NTSTATUS LogpInitializeBufferInfo(
     _In_ const wchar_t *LogFilePath, _In_opt_ PDEVICE_OBJECT DeviceObject,
     _Inout_ LogBufferInfo *Info);
 
-EXTERN_C static void LogpFinalizeBufferInfo(_In_opt_ PDEVICE_OBJECT
-                                                DeviceObject,
-                                            _In_ LogBufferInfo *Info);
+EXTERN_C static void LogpFinalizeBufferInfo(
+    _In_opt_ PDEVICE_OBJECT DeviceObject, _In_ LogBufferInfo *Info);
 
 #ifdef _X86_
 _Requires_lock_not_held_(*SpinLock) _Acquires_lock_(*SpinLock)
@@ -174,6 +174,7 @@ EXTERN_C static NTSTATUS LogpInitializeBufferInfo(
   if (!NT_SUCCESS(status)) {
     return status;
   }
+  Info->ResourceInitialized = true;
 
   if (DeviceObject) {
     // We can handle IRP_MJ_SHUTDOWN in order to flush buffered log entries.
@@ -276,9 +277,8 @@ EXTERN_C void LogTermination(_In_opt_ PDEVICE_OBJECT DeviceObject) {
 
 // Terminates a log file related code.
 ALLOC_TEXT(PAGED, LogpFinalizeBufferInfo)
-EXTERN_C static void LogpFinalizeBufferInfo(_In_opt_ PDEVICE_OBJECT
-                                                DeviceObject,
-                                            _In_ LogBufferInfo *Info) {
+EXTERN_C static void LogpFinalizeBufferInfo(
+    _In_opt_ PDEVICE_OBJECT DeviceObject, _In_ LogBufferInfo *Info) {
   PAGED_CODE();
   NT_ASSERT(Info);
 
@@ -311,7 +311,10 @@ EXTERN_C static void LogpFinalizeBufferInfo(_In_opt_ PDEVICE_OBJECT
   if (DeviceObject) {
     IoUnregisterShutdownNotification(DeviceObject);
   }
+  if (Info->ResourceInitialized) {
   ExDeleteResourceLite(&Info->Resource);
+    Info->ResourceInitialized = false;
+  }
 }
 
 #ifdef _X86_
@@ -336,7 +339,7 @@ EXTERN_C NTSTATUS LogpPrint(_In_ ULONG Level, _In_ const char *FunctionName,
 
   va_list args;
   va_start(args, Format);
-  char logMessage[300];
+  char logMessage[412];
   status =
       RtlStringCchVPrintfA(logMessage, RTL_NUMBER_OF(logMessage), Format, args);
   va_end(args);
@@ -352,7 +355,7 @@ EXTERN_C NTSTATUS LogpPrint(_In_ ULONG Level, _In_ const char *FunctionName,
 
   // A single entry of log should not exceed 512 bytes. See
   // Reading and Filtering Debugging Messages in MSDN for details.
-  char message[100 + RTL_NUMBER_OF(logMessage)];
+  char message[512];
   static_assert(RTL_NUMBER_OF(message) <= 512,
                 "One log message should not exceed 512 bytes.");
   status = LogpMakePrefix(pureLevel, FunctionName, logMessage, message,
@@ -430,8 +433,8 @@ EXTERN_C static NTSTATUS LogpMakePrefix(_In_ ULONG Level,
   // not quite sure. The former way works as expected.
   //
   status = RtlStringCchPrintfA(
-      LogBuffer, LogBufferLength, "%s%s\t%5lu\t%5lu\t%-15s\t%s%s\r\n",
-      timeBuffer, levelString,
+      LogBuffer, LogBufferLength, "%s%s\t%5lu\t%5lu\t%-15s\t%s%s\n", timeBuffer,
+      levelString,
       reinterpret_cast<ULONG_PTR>(PsGetProcessId(PsGetCurrentProcess())),
       reinterpret_cast<ULONG_PTR>(PsGetCurrentThreadId()),
       PsGetProcessImageFileName(PsGetCurrentProcess()), functionNameBuffer,
@@ -492,6 +495,8 @@ EXTERN_C static NTSTATUS LogpPut(_In_ const char *Message,
 EXTERN_C static NTSTATUS LogpWriteLogBufferToFile(
     _In_opt_ LogBufferInfo *Info) {
   NT_ASSERT(Info);
+  NT_ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
+
   auto status = STATUS_SUCCESS;
 
   // Enter a critical section and acquire a reader lock for Info in order to
@@ -536,6 +541,8 @@ EXTERN_C static NTSTATUS LogpWriteLogBufferToFile(
 // Logs the current log entry to and flush the log file.
 EXTERN_C static NTSTATUS LogpWriteMessageToFile(
     _In_ const char *Message, _In_ const LogBufferInfo &Info) {
+  NT_ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
+
   IO_STATUS_BLOCK ioStatus = {};
   auto status =
       ZwWriteFile(Info.LogFileHandle, nullptr, nullptr, nullptr, &ioStatus,
@@ -557,7 +564,11 @@ EXTERN_C static NTSTATUS LogpBufferMessage(_In_ const char *Message,
   NT_ASSERT(Info);
 
   // Acquire a spin lock to add the log safely.
-  const auto irql = KeAcquireSpinLockRaiseToDpc(&Info->SpinLock);
+  const auto oldIrql = KeGetCurrentIrql();
+  if (oldIrql < DISPATCH_LEVEL) {
+    KeAcquireSpinLockRaiseToDpc(&Info->SpinLock);
+  }
+  NT_ASSERT(KeGetCurrentIrql() >= DISPATCH_LEVEL);
 
   // Copy the current log to the buffer.
   size_t usedBufferSize = Info->LogBufferTail - Info->LogBufferHead;
@@ -578,7 +589,9 @@ EXTERN_C static NTSTATUS LogpBufferMessage(_In_ const char *Message,
   }
   *Info->LogBufferTail = '\0';
 
-  KeReleaseSpinLock(&Info->SpinLock, irql);
+  if (oldIrql < DISPATCH_LEVEL) {
+    KeReleaseSpinLock(&Info->SpinLock, oldIrql);
+  }
   return status;
 }
 
@@ -615,6 +628,7 @@ EXTERN_C static VOID LogpBufferFlushThreadRoutine(_In_ void *StartContext) {
   NT_ASSERT(LogpIsLogFileEnabled(*info));
 
   while (info->BufferFlushThreadShouldBeAlive) {
+    LogpSleep(LOGP_AUTO_FLUSH_INTERVAL_MSEC);
     if (info->LogBufferHead[0]) {
       NT_ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
       NT_ASSERT(!KeAreAllApcsDisabled());
@@ -623,7 +637,6 @@ EXTERN_C static VOID LogpBufferFlushThreadRoutine(_In_ void *StartContext) {
       // bug check, we should be able to recover logs by looking at both
       // log buffers.
     }
-    LogpSleep(LOGP_AUTO_FLUSH_INTERVAL_MSEC);
   }
   LOG_DEBUG("Log thread is ending.");
   PsTerminateSystemThread(status);
