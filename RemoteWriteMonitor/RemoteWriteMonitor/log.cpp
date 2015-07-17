@@ -88,7 +88,7 @@ EXTERN_C static NTSTATUS LogpMakePrefix(_In_ ULONG Level,
 EXTERN_C static const char *LogpFindBaseFunctionName(
     _In_ const char *FunctionName);
 
-EXTERN_C static NTSTATUS LogpPut(_In_ const char *Message,
+EXTERN_C static NTSTATUS LogpPut(_In_ char *Message,
                                  _In_ ULONG Attribute);
 
 EXTERN_C static NTSTATUS LogpWriteLogBufferToFile(_In_opt_ LogBufferInfo *Info);
@@ -433,7 +433,7 @@ EXTERN_C static NTSTATUS LogpMakePrefix(_In_ ULONG Level,
   // not quite sure. The former way works as expected.
   //
   status = RtlStringCchPrintfA(
-      LogBuffer, LogBufferLength, "%s%s\t%5lu\t%5lu\t%-15s\t%s%s\n", timeBuffer,
+      LogBuffer, LogBufferLength, "%s%s\t%5lu\t%5lu\t%-15s\t%s%s\r\n", timeBuffer,
       levelString,
       reinterpret_cast<ULONG_PTR>(PsGetProcessId(PsGetCurrentProcess())),
       reinterpret_cast<ULONG_PTR>(PsGetCurrentThreadId()),
@@ -461,7 +461,7 @@ EXTERN_C static const char *LogpFindBaseFunctionName(
 }
 
 // Logs the entry according to Attribute and the thread condition.
-EXTERN_C static NTSTATUS LogpPut(_In_ const char *Message,
+EXTERN_C static NTSTATUS LogpPut(_In_ char *Message,
                                  _In_ ULONG Attribute) {
   auto status = STATUS_SUCCESS;
 
@@ -485,6 +485,9 @@ EXTERN_C static NTSTATUS LogpPut(_In_ const char *Message,
     return STATUS_UNSUCCESSFUL;
   }
 
+  const auto cr = strlen(Message) - 2;
+  Message[cr] = '\n';
+  Message[cr + 1] = '\0';
   DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL, "%s", Message);
   return status;
 }
